@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { ENV } from "../lib/env.js";
 import cloudinary from "../lib/cloudinary.js";
 
+
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
 
@@ -46,6 +47,13 @@ export const signup = async (req, res) => {
       const savedUser = await newUser.save();
       generateToken(savedUser._id, res);
 
+      // Send welcome email asynchronously, without blocking the response
+      try {
+        await sendWelcomeEmail(savedUser.email, savedUser.fullName, ENV.CLIENT_URL);
+      } catch (error) {
+        console.error("Failed to send welcome email:", error);
+      }
+
       res.status(201).json({
         _id: newUser._id,
         fullName: newUser.fullName,
@@ -53,11 +61,6 @@ export const signup = async (req, res) => {
         profilePic: newUser.profilePic,
       });
 
-      try {
-        await sendWelcomeEmail(savedUser.email, savedUser.fullName, ENV.CLIENT_URL);
-      } catch (error) {
-        console.error("Failed to send welcome email:", error);
-      }
     } else {
       res.status(400).json({ message: "Invalid user data" });
     }
@@ -81,6 +84,11 @@ export const login = async (req, res) => {
 
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) return res.status(400).json({ message: "Invalid credentials" });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
+    }
 
     generateToken(user._id, res);
 
@@ -97,7 +105,12 @@ export const login = async (req, res) => {
 };
 
 export const logout = (_, res) => {
-  res.cookie("jwt", "", { maxAge: 0 });
+  res.cookie("jwt", "", {
+    maxAge: 0,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "None",
+  });
   res.status(200).json({ message: "Logged out successfully" });
 };
 

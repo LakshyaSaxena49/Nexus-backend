@@ -18,10 +18,7 @@ const PORT = ENV.PORT || 3000;
 app.use(express.json({ limit: "5mb" })); // req.body
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://vercel.com/lakshyasaxena49-8724s-projects/nexus-frontend/4kvsZWuQkp6hG9nvZPuxFoZ8DZvM",
-    ],
+    origin: "https://nexus-frontend-dusky.vercel.app",
     credentials: true,
   }),
 );
