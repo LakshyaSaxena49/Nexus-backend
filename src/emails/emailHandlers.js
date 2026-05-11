@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { resendClient, sender } from "../lib/resend.js";
 import { createWelcomeEmailTemplate } from "../emails/emailTemplates.js";
 
@@ -15,4 +16,17 @@ export const sendWelcomeEmail = async (email, name, clientURL) => {
   }
 
   console.log("Welcome Email sent successfully", data);
+};
+
+export const sendResetPasswordEmail = async (email, fullName, resetURL) => {
+  try {
+    await resendClient.emails.send({
+      from: `${sender.name} <${sender.email}>`,
+      to: email,
+      subject: "Reset Your Password",
+      html: resetPasswordTemplate(resetURL, fullName),
+    });
+  } catch (error) {
+    console.log("Reset password email failed:", error);
+  }
 };

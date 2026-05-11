@@ -4,6 +4,8 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import { ENV } from "../lib/env.js";
 import cloudinary from "../lib/cloudinary.js";
+import crypto from "crypto";
+import { sendResetPasswordEmail } from "../emails/emailHandlers.js";
 
 
 export const signup = async (req, res) => {
@@ -101,6 +103,88 @@ export const login = async (req, res) => {
   } catch (error) {
     console.error("Error in login controller:", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required",
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    // generate token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    user.resetPasswordToken = resetToken;
+
+    user.resetPasswordExpiresAt = Date.now() + 60 * 60 * 1000;
+
+    await user.save();
+
+    const resetURL = `${ENV.CLIENT_URL}/reset-password/${resetToken}`;
+
+    await sendResetPasswordEmail(user.email, user.fullName, resetURL);
+
+    res.status(200).json({
+      message: "Reset password email sent",
+    });
+  } catch (error) {
+    console.log("Forgot password error:", error);
+
+    res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters",
+      });
+    }
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpiresAt: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid or expired token",
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+
+    user.password = await bcrypt.hash(password, salt);
+
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpiresAt = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Password reset successful",
+    });
+  } catch (error) {
+    console.log("Reset password error:", error);
   }
 };
 
